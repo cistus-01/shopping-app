@@ -5,6 +5,7 @@ import ShoppingList from './pages/ShoppingList'
 import Items from './pages/Items'
 import Finance from './pages/Finance'
 import Stores from './pages/Stores'
+import Settings from './pages/Settings'
 import { useStore } from './hooks/useStore'
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
           <Route path="/items" element={<Items store={store} />} />
           <Route path="/finance" element={<Finance store={store} />} />
           <Route path="/stores" element={<Stores store={store} />} />
+          <Route path="/settings" element={<Settings />} />
         </Routes>
       </Layout>
     </BrowserRouter>

@@ -1,9 +1,16 @@
 import { NavLink } from 'react-router-dom'
-import { Home, ShoppingCart, Package, BookOpen, Store } from 'lucide-react'
+import { Home, ShoppingCart, Package, BookOpen, Store, Settings } from 'lucide-react'
 
 export default function Layout({ children }) {
   return (
     <div className="min-h-screen bg-gray-50">
+      <div className="fixed top-0 right-0 z-30 p-3">
+        <NavLink to="/settings" className={({ isActive }) =>
+          `w-9 h-9 rounded-full flex items-center justify-center ${isActive ? 'bg-emerald-100 text-emerald-600' : 'bg-white text-gray-400 shadow-sm border border-gray-100'}`
+        }>
+          <Settings size={18} />
+        </NavLink>
+      </div>
       <div className="max-w-lg mx-auto px-4 pt-6 pb-4">
         {children}
       </div>
