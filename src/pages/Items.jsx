@@ -10,10 +10,11 @@ const CYCLES = [{ label: '3日', val: 3 }, { label: '1週間', val: 7 }, { label
 const emptyForm = { name: '', store: '', price: '', category: '食料品', cycleDays: '7', notes: '' }
 
 export default function Items({ store }) {
-  const { items, addItem, updateItem, deleteItem, markBought, addItemToList, getDueItems } = store
+  const { items, addItem, updateItem, deleteItem, addItemToList, getDueItems } = store
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyForm)
+  const [addedId, setAddedId] = useState(null)
   const dueIds = new Set(getDueItems().map(i => i.id))
 
   const openAdd = () => { setForm(emptyForm); setEditing(null); setShowForm(true) }
@@ -30,9 +31,10 @@ export default function Items({ store }) {
     setShowForm(false); setEditing(null)
   }
 
-  const handleBought = (item) => {
-    markBought(item.id)
+  const handleAddToList = (item) => {
     addItemToList(item)
+    setAddedId(item.id)
+    setTimeout(() => setAddedId(null), 1500)
   }
 
   const byCategory = CATEGORIES.reduce((acc, c) => {
@@ -81,8 +83,8 @@ export default function Items({ store }) {
                         )}
                       </div>
                       <div className="flex gap-1 shrink-0">
-                        <button onClick={() => handleBought(item)} title="購入してリストに追加"
-                          className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 active:bg-emerald-200">
+                        <button onClick={() => handleAddToList(item)} title="リストに追加"
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${addedId === item.id ? 'bg-emerald-500 text-white' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 active:bg-emerald-200'}`}>
                           <ShoppingCart size={16} />
                         </button>
                         <button onClick={() => deleteItem(item.id)}

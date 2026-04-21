@@ -4,18 +4,20 @@ import Home from './pages/Home'
 import ShoppingList from './pages/ShoppingList'
 import Items from './pages/Items'
 import Finance from './pages/Finance'
+import Stores from './pages/Stores'
 import { useStore } from './hooks/useStore'
 
 export default function App() {
   const store = useStore()
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/shopping-app">
       <Layout>
         <Routes>
           <Route path="/" element={<Home store={store} />} />
           <Route path="/list" element={<ShoppingList store={store} />} />
           <Route path="/items" element={<Items store={store} />} />
           <Route path="/finance" element={<Finance store={store} />} />
+          <Route path="/stores" element={<Stores store={store} />} />
         </Routes>
       </Layout>
     </BrowserRouter>
