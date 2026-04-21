@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Plus, Trash2, Check, X, ShoppingBag, ChevronRight } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Plus, Trash2, Check, X, ShoppingBag, ChevronRight, LayoutList, Tag } from 'lucide-react'
 
 const CATEGORIES = ['食料品', '日用品', '医薬品', '衣類', 'その他']
 
@@ -40,15 +40,58 @@ function PurchaseModal({ item, stores, onConfirm, onClose }) {
   )
 }
 
+function ListItem({ item, onCheck, onDelete }) {
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center gap-3">
+      <button onClick={() => onCheck(item)}
+        className="w-7 h-7 rounded-full border-2 border-emerald-400 shrink-0 flex items-center justify-center active:bg-emerald-100" />
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-gray-800 truncate">{item.name}</p>
+        <p className="text-xs text-gray-400">
+          {[item.store, item.price ? `¥${Number(item.price).toLocaleString()}` : null].filter(Boolean).join(' · ')}
+        </p>
+      </div>
+      {item.quantity > 1 && <span className="text-sm text-gray-500 shrink-0">×{item.quantity}</span>}
+      <button onClick={() => onDelete(item.id)} className="text-gray-300 hover:text-red-400 shrink-0 p-1">
+        <X size={16} />
+      </button>
+    </div>
+  )
+}
+
 export default function ShoppingList({ store }) {
   const { list, items, addToList, toggleListItem, deleteListItem, clearChecked, addItemToList, checkAndRecord, stores } = store
   const [showForm, setShowForm] = useState(false)
   const [showItems, setShowItems] = useState(false)
   const [purchaseTarget, setPurchaseTarget] = useState(null)
+  const [groupByCategory, setGroupByCategory] = useState(false)
   const [form, setForm] = useState({ name: '', store: '', price: '', category: '食料品', quantity: '1' })
 
   const unchecked = list.filter(x => !x.checked)
   const checked = list.filter(x => x.checked)
+
+  // カテゴリ別グループ（groupByCategory=trueの時）
+  const groupedUnchecked = useMemo(() => {
+    if (!groupByCategory) return null
+    const groups = {}
+    for (const item of unchecked) {
+      const cat = item.category || 'その他'
+      if (!groups[cat]) groups[cat] = []
+      groups[cat].push(item)
+    }
+    return Object.entries(groups).sort(([a], [b]) => {
+      const ai = CATEGORIES.indexOf(a), bi = CATEGORIES.indexOf(b)
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+    })
+  }, [unchecked, groupByCategory])
+
+  // 合計金額（価格ありアイテムのみ）
+  const totalEstimate = useMemo(() => {
+    return unchecked.reduce((sum, item) => sum + (item.price ? Number(item.price) * (item.quantity || 1) : 0), 0)
+  }, [unchecked])
+  const checkedTotal = useMemo(() => {
+    return checked.reduce((sum, item) => sum + (item.price ? Number(item.price) * (item.quantity || 1) : 0), 0)
+  }, [checked])
 
   const handleAdd = (e) => {
     e.preventDefault()
@@ -83,12 +126,17 @@ export default function ShoppingList({ store }) {
         />
       )}
 
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-2">
         <h2 className="text-lg font-bold text-gray-800">
           買い物リスト
           {unchecked.length > 0 && <span className="ml-2 text-sm font-normal text-gray-400">{unchecked.length}件</span>}
         </h2>
         <div className="flex gap-2">
+          <button onClick={() => setGroupByCategory(v => !v)}
+            title="カテゴリ別に並べる"
+            className={`text-xs border rounded-lg px-2.5 py-1.5 flex items-center gap-1 ${groupByCategory ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'text-gray-400 border-gray-200'}`}>
+            <Tag size={13} /> カテゴリ
+          </button>
           {checked.length > 0 && (
             <button onClick={clearChecked} className="text-xs text-gray-400 border border-gray-200 rounded-lg px-3 py-1.5">
               完了済みを削除
@@ -99,6 +147,23 @@ export default function ShoppingList({ store }) {
           </button>
         </div>
       </div>
+
+      {(totalEstimate > 0 || checkedTotal > 0) && (
+        <div className="flex gap-2 mb-3 text-sm">
+          {totalEstimate > 0 && (
+            <div className="bg-white rounded-xl px-3 py-2 border border-gray-100 shadow-sm flex-1 text-center">
+              <span className="text-gray-400 text-xs block">残り予算</span>
+              <span className="font-bold text-gray-700">¥{totalEstimate.toLocaleString()}</span>
+            </div>
+          )}
+          {checkedTotal > 0 && (
+            <div className="bg-emerald-50 rounded-xl px-3 py-2 border border-emerald-100 flex-1 text-center">
+              <span className="text-emerald-500 text-xs block">購入済み</span>
+              <span className="font-bold text-emerald-600">¥{checkedTotal.toLocaleString()}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {showItems && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4">
@@ -129,22 +194,15 @@ export default function ShoppingList({ store }) {
           </div>
         )}
 
-        {unchecked.map(item => (
-          <div key={item.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center gap-3">
-            <button onClick={() => handleCheck(item)}
-              className="w-7 h-7 rounded-full border-2 border-emerald-400 shrink-0 flex items-center justify-center active:bg-emerald-100" />
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-gray-800 truncate">{item.name}</p>
-              <p className="text-xs text-gray-400">
-                {[item.store, item.price ? `¥${Number(item.price).toLocaleString()}` : null, item.category].filter(Boolean).join(' · ')}
-              </p>
+        {groupedUnchecked
+          ? groupedUnchecked.map(([cat, catItems]) => (
+            <div key={cat}>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 pt-3 pb-1">{cat}</p>
+              {catItems.map(item => <ListItem key={item.id} item={item} onCheck={handleCheck} onDelete={deleteListItem} />)}
             </div>
-            {item.quantity > 1 && <span className="text-sm text-gray-500 shrink-0">×{item.quantity}</span>}
-            <button onClick={() => deleteListItem(item.id)} className="text-gray-300 hover:text-red-400 shrink-0 p-1">
-              <X size={16} />
-            </button>
-          </div>
-        ))}
+          ))
+          : unchecked.map(item => <ListItem key={item.id} item={item} onCheck={handleCheck} onDelete={deleteListItem} />)
+        }
 
         {checked.length > 0 && (
           <>
