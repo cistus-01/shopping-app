@@ -6,9 +6,10 @@ import { ja } from 'date-fns/locale'
 import { requestPermission, scheduleCheck } from '../utils/notifications'
 
 export default function Home({ store }) {
-  const { list, finance, getDueItems, items, getFutureSpendings } = store
+  const { list, finance, getDueItems, items, getFutureSpendings, getMonthlyForecast } = store
   const dueItems = getDueItems()
   const unchecked = list.filter(x => !x.checked)
+  const forecast = getMonthlyForecast()
 
   const today = new Date()
   const ym = format(today, 'yyyy-MM')
@@ -88,6 +89,31 @@ export default function Home({ store }) {
             {futureSpendings.length > 4 && (
               <p className="text-xs text-blue-400 text-center mt-1">他 {futureSpendings.length - 4} 件</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 今月の出費予測 */}
+      {(forecast.confirmed > 0 || forecast.fromItems > 0) && (
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+          <p className="font-semibold text-gray-700 mb-3 flex items-center gap-2 text-sm">
+            <TrendingUp size={16} className="text-purple-500" /> 今月の出費予測
+          </p>
+          <div className="flex gap-4">
+            <div>
+              <p className="text-xs text-gray-400">確定済み</p>
+              <p className="font-bold text-red-500">¥{forecast.confirmed.toLocaleString()}</p>
+            </div>
+            {forecast.fromItems > 0 && (
+              <div>
+                <p className="text-xs text-gray-400">定番追加予定</p>
+                <p className="font-bold text-orange-400">+¥{forecast.fromItems.toLocaleString()}</p>
+              </div>
+            )}
+            <div className="ml-auto text-right">
+              <p className="text-xs text-gray-400">合計予測</p>
+              <p className="font-bold text-gray-700">¥{forecast.total.toLocaleString()}</p>
+            </div>
           </div>
         </div>
       )}

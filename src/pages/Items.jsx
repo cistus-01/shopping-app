@@ -67,9 +67,21 @@ export default function Items({ store }) {
                   <div key={item.id} className={`bg-white rounded-2xl p-4 shadow-sm border ${due ? 'border-amber-300' : 'border-gray-100'}`}>
                     <div className="flex items-start gap-3">
                       <div className="flex-1 min-w-0" onClick={() => openEdit(item)}>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-gray-800 truncate">{item.name}</p>
                           {due && <span className="text-xs bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full shrink-0">買い時</span>}
+                          {(() => {
+                            const prices = (item.purchaseHistory || []).filter(h => h.price != null).map(h => h.price)
+                            if (prices.length < 2) return null
+                            const diff = prices[prices.length - 1] - prices[prices.length - 2]
+                            if (Math.abs(diff) < 1) return null
+                            const pct = Math.round(Math.abs(diff) / prices[prices.length - 2] * 100)
+                            return (
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full shrink-0 ${diff > 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}`}>
+                                {diff > 0 ? `↑${pct}%` : `↓${pct}%`}
+                              </span>
+                            )
+                          })()}
                         </div>
                         <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
                           {item.store && <span className="text-xs text-gray-400 flex items-center gap-0.5"><Store size={11} />{item.store}</span>}
