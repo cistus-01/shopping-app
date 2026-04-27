@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Plus, X, ShoppingCart, Clock, Store, Tag } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ja } from 'date-fns/locale'
+import { ITEM_ICONS } from '../utils/categories'
 
 const CATEGORIES = ['食料品', '日用品', '医薬品', '衣類', 'その他']
 const CYCLES = [{ label: '3日', val: 3 }, { label: '1週間', val: 7 }, { label: '2週間', val: 14 },
@@ -59,7 +60,7 @@ export default function Items({ store }) {
       <div className="space-y-5">
         {Object.entries(byCategory).map(([cat, catItems]) => (
           <div key={cat}>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">{cat}</p>
+            <p className="text-xs font-semibold text-gray-400 mb-2 px-1">{ITEM_ICONS[cat]} {cat}</p>
             <div className="space-y-2">
               {catItems.map(item => {
                 const due = dueIds.has(item.id)

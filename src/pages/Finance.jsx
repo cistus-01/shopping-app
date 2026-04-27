@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { Plus, X, TrendingUp, TrendingDown, Target, Lightbulb, ChevronDown } from 'lucide-react'
 import { format, startOfWeek, endOfWeek } from 'date-fns'
 import { ja } from 'date-fns/locale'
+import { FINANCE_ICONS } from '../utils/categories'
 
 const EXPENSE_CATS = ['食費', '日用品', '交通費', '医療費', '衣類', '外食', '娯楽', 'その他']
 const INCOME_CATS = ['給与', '副業', 'ボーナス', 'その他']
@@ -23,7 +24,7 @@ function BudgetModal({ budgets, onSave, onClose }) {
         <p className="text-xs font-semibold text-gray-400 border-t pt-3">カテゴリ別予算（任意）</p>
         {EXPENSE_CATS.map(cat => (
           <div key={cat} className="flex items-center gap-3">
-            <span className="text-sm text-gray-700 w-16 shrink-0">{cat}</span>
+            <span className="text-sm text-gray-700 w-20 shrink-0">{FINANCE_ICONS[cat]} {cat}</span>
             <input type="number" className="input flex-1" placeholder="未設定"
               value={categories[cat] || ''}
               onChange={e => setCategories(p => ({ ...p, [cat]: e.target.value }))} />
@@ -223,7 +224,7 @@ export default function Finance({ store }) {
               return (
                 <div key={cat}>
                   <div className="flex items-center gap-2 mb-0.5">
-                    <p className="text-sm text-gray-700 w-16 shrink-0">{cat}</p>
+                    <p className="text-sm text-gray-700 w-20 shrink-0">{FINANCE_ICONS[cat]} {cat}</p>
                     <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
                       <div className={`h-2 rounded-full ${over ? 'bg-red-400' : catBudget ? 'bg-amber-400' : 'bg-red-300'}`}
                         style={{ width: `${pct}%` }} />
@@ -293,7 +294,7 @@ export default function Finance({ store }) {
                   <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${i.change > 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}`}>
                     {i.change > 0 ? `+${i.change}%` : `${i.change}%`}
                   </span>
-                  <span className="text-gray-700 flex-1">{i.category}</span>
+                  <span className="text-gray-700 flex-1">{FINANCE_ICONS[i.category]} {i.category}</span>
                   <span className="text-gray-400 text-xs">
                     平均¥{i.avg.toLocaleString()}→¥{i.current.toLocaleString()}
                   </span>
@@ -312,10 +313,8 @@ export default function Finance({ store }) {
         )}
         {records.map(f => (
           <div key={f.id} className="bg-white rounded-2xl px-4 py-3 shadow-sm border border-gray-100 flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${f.type === 'income' ? 'bg-emerald-100' : 'bg-red-100'}`}>
-              {f.type === 'income'
-                ? <TrendingUp size={16} className="text-emerald-600" />
-                : <TrendingDown size={16} className="text-red-500" />}
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-base ${f.type === 'income' ? 'bg-emerald-50' : 'bg-red-50'}`}>
+              {FINANCE_ICONS[f.category] || (f.type === 'income' ? '💴' : '📦')}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-800">
