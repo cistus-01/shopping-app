@@ -3,7 +3,7 @@ import { join, relative } from 'path';
 
 const TOKEN = process.env.GH_PAT || '';
 const REPO = 'cistus-01/shopping-app';
-const DIST = '/home/root/shopping-app/dist';
+const DIST = '/home/irodori/products/shopping-app/dist';
 const BRANCH = 'gh-pages';
 const API = 'https://api.github.com';
 

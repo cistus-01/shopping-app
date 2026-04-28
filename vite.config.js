@@ -3,8 +3,21 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  base: '/shopping-app/',
+  base: '/',
   plugins: [
+    {
+      name: 'redirect-no-trailing-slash',
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (req.url === '/shopping-app') {
+            res.writeHead(301, { Location: '/shopping-app/' })
+            res.end()
+            return
+          }
+          next()
+        })
+      }
+    },
     react(),
     VitePWA({
       registerType: 'autoUpdate',
@@ -17,7 +30,7 @@ export default defineConfig({
         background_color: '#f0fdf4',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/shopping-app/',
+        start_url: '/',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }

@@ -3,7 +3,7 @@ set -e
 
 TOKEN="${GH_PAT}"
 REPO="cistus-01/shopping-app"
-DIST="/home/root/shopping-app/dist"
+DIST="/home/irodori/products/shopping-app/dist"
 BRANCH="gh-pages"
 API="https://api.github.com"
 AUTH="Authorization: token $TOKEN"
