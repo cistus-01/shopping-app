@@ -19,6 +19,7 @@ function normalizeItem(r) {
     store: r.store || '',
     price: r.price || null,
     category: r.category || 'その他',
+    subcategory: r.subcategory || '',
     cycleDays: r.cycle_days || r.cycleDays || null,
     lastBoughtAt: r.last_bought_at || r.lastBoughtAt || null,
     purchaseHistory: r.purchase_history || r.purchaseHistory || [],
@@ -387,13 +388,25 @@ export function useStore() {
     if (effectiveStore?.trim() && !stores.some(s => s.name === effectiveStore.trim())) {
       addStore({ name: effectiveStore.trim(), category: 'スーパー', note: '自動登録' })
     }
-    // 同じ店で価格が違えばitem_store_pricesを更新（家計簿の過去データは触らない）
+    // item_store_prices を自動更新（家計簿の過去データは触らない）
     if (li.itemId && effectiveStore && effectivePrice != null) {
       const existing = itemPrices.find(p => p.item_id === li.itemId && p.store_name === effectiveStore)
-      if (existing && Number(existing.price) !== Number(effectivePrice)) {
-        updateItemPrice(existing.id, {
+      if (existing) {
+        // 同じ店で価格が違えば更新
+        if (Number(existing.price) !== Number(effectivePrice)) {
+          updateItemPrice(existing.id, {
+            price: effectivePrice,
+            ...(unitSize != null ? { unit_size: unitSize, unit_type: unitType || '個' } : {}),
+          })
+        }
+      } else {
+        // 新しい店+商品の組み合わせなら追加
+        addItemPrice({
+          item_id: li.itemId,
+          store_name: effectiveStore,
           price: effectivePrice,
-          ...(unitSize != null ? { unit_size: unitSize, unit_type: unitType || '個' } : {}),
+          unit_size: unitSize,
+          unit_type: unitType || '個',
         })
       }
     }

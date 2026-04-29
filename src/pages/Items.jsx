@@ -7,6 +7,14 @@ import { ITEM_ICONS } from '../utils/categories'
 const CATEGORIES = ['食料品', '日用品', '医薬品', '衣類', 'その他']
 const UNIT_TYPES = ['個', 'ml', 'g', 'L', 'kg', '枚', '袋', '本', 'm']
 
+const SUBCATEGORIES = {
+  '食料品': ['野菜・果物', '肉・魚', '乳製品・卵', '調味料・油', '飲料', '冷凍食品', 'お菓子・嗜好品', '惣菜・加工品'],
+  '日用品': ['洗濯・柔軟剤', 'トイレ・衛生用品', 'ティッシュ・紙類', '食器用洗剤', '掃除用品', 'ゴミ袋・収納'],
+  '医薬品': ['解熱・鎮痛', '胃腸薬', '風邪薬', 'ビタミン・サプリ', '外用薬・絆創膏'],
+  '衣類': ['洋服', '下着・靴下', '靴', 'アクセサリー'],
+  'その他': [],
+}
+
 function formatCycleDays(days) {
   if (!days || days <= 0) return null
   if (days === 1) return '毎日'
@@ -124,6 +132,9 @@ function ItemCard({
           <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onEdit(item)}>
             <div className="flex items-center gap-2 flex-wrap">
               <p className="font-semibold text-gray-800">{item.name}</p>
+              {item.subcategory && (
+                <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full shrink-0">{item.subcategory}</span>
+              )}
               {due && (
                 <span className="text-xs bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full shrink-0">買い時</span>
               )}
@@ -333,7 +344,7 @@ function ItemCard({
 
 // ─ メインコンポーネント ───────────────────────────────────
 
-const emptyForm = { name: '', store: '', price: '', category: '食料品', notes: '' }
+const emptyForm = { name: '', store: '', price: '', category: '食料品', subcategory: '', notes: '' }
 const emptyPriceForm = { store_name: '', price: '', unit_size: '', unit_type: 'ml' }
 
 export default function Items({ store }) {
@@ -411,6 +422,7 @@ export default function Items({ store }) {
       store: item.store || '',
       price: item.price != null ? String(item.price) : '',
       category: item.category || '食料品',
+      subcategory: item.subcategory || '',
       notes: item.notes || '',
     })
     setEditing(item.id)
@@ -424,6 +436,7 @@ export default function Items({ store }) {
       store: form.store,
       price: form.price ? Number(form.price) : null,
       category: form.category,
+      subcategory: form.subcategory,
       notes: form.notes,
     }
     if (editing) {
@@ -501,14 +514,39 @@ export default function Items({ store }) {
 
       {viewMode === 'category' && (
         <div className="space-y-5">
-          {Object.entries(byCategory).map(([cat, catItems]) => (
-            <div key={cat}>
-              <p className="text-xs font-semibold text-gray-400 mb-2 px-1">{ITEM_ICONS[cat]} {cat}</p>
-              <div className="space-y-2">
-                {catItems.map(item => <ItemCard key={item.id} item={item} {...cardProps} />)}
+          {Object.entries(byCategory).map(([cat, catItems]) => {
+            // サブカテゴリ別にグループ化
+            const withSub = catItems.filter(i => i.subcategory)
+            const withoutSub = catItems.filter(i => !i.subcategory)
+            const subGroups = withSub.reduce((acc, item) => {
+              if (!acc[item.subcategory]) acc[item.subcategory] = []
+              acc[item.subcategory].push(item)
+              return acc
+            }, {})
+            return (
+              <div key={cat}>
+                <p className="text-xs font-semibold text-gray-400 mb-2 px-1">{ITEM_ICONS[cat]} {cat}</p>
+                <div className="space-y-3">
+                  {Object.entries(subGroups).map(([sub, subItems]) => (
+                    <div key={sub}>
+                      <p className="text-xs text-gray-300 mb-1.5 px-1 flex items-center gap-1">
+                        <span className="w-3 h-px bg-gray-200 inline-block" />
+                        {sub}
+                      </p>
+                      <div className="space-y-2">
+                        {subItems.map(item => <ItemCard key={item.id} item={item} {...cardProps} />)}
+                      </div>
+                    </div>
+                  ))}
+                  {withoutSub.length > 0 && (
+                    <div className="space-y-2">
+                      {withoutSub.map(item => <ItemCard key={item.id} item={item} {...cardProps} />)}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -537,10 +575,17 @@ export default function Items({ store }) {
             <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
               placeholder="商品名 *" className="input" required autoFocus />
 
-            <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
-              className="input">
-              {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-            </select>
+            <div className="grid grid-cols-2 gap-3">
+              <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value, subcategory: '' }))}
+                className="input">
+                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+              </select>
+              <select value={form.subcategory} onChange={e => setForm(p => ({ ...p, subcategory: e.target.value }))}
+                className="input text-sm">
+                <option value="">サブカテゴリ（任意）</option>
+                {(SUBCATEGORIES[form.category] || []).map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>

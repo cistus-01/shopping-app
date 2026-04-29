@@ -246,7 +246,7 @@ export default function Home({ store }) {
   const { list, finance, getDueItems, items, getFutureSpendings, getMonthlyForecast, budgets,
     addToList, toggleListItem, deleteListItem, updateListItem, clearChecked, addItemToList,
     finalizeListItem, getSuggestions, stores, syncing, manualSync, pendingWrites,
-    itemPrices, updateFinance, deleteFinance } = store
+    itemPrices, updateFinance, deleteFinance, updateItem } = store
 
   const [period, setPeriod] = useState('month') // 'week' | 'month'
   const [quickAdd, setQuickAdd] = useState('')
@@ -401,7 +401,12 @@ export default function Home({ store }) {
       )}
       {editTarget && (
         <EditModal item={editTarget} stores={stores||[]}
-          onSave={(patch) => { updateListItem(editTarget.id, patch); setEditTarget(null) }}
+          onSave={(patch) => {
+            updateListItem(editTarget.id, patch)
+            // カテゴリ変更を定番アイテムにも反映（何度修正しても戻る問題を防ぐ）
+            if (editTarget.itemId && patch.category) updateItem(editTarget.itemId, { category: patch.category })
+            setEditTarget(null)
+          }}
           onClose={() => setEditTarget(null)} />
       )}
       {showAddModal && (
