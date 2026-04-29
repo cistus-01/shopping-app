@@ -8,10 +8,9 @@ import { requestPermission, scheduleCheck } from '../utils/notifications'
 const CATEGORIES = ['食料品', '日用品', '医薬品', '衣類', 'その他']
 const UNIT_TYPES = ['個', 'ml', 'g', 'L', 'kg', '枚', '袋', '本', 'm']
 
-// onClose  = モーダルを閉じるだけ（購入済みにしない）
-// onSkip   = 詳細記録なしで購入済みにする
-// onConfirm= 詳細を記録して購入済みにする
-function PurchaseModal({ item, stores, itemPrices, onConfirm, onSkip, onClose }) {
+// チェック済みアイテムの購入情報記録モーダル
+function RecordModal({ item, stores, itemPrices, onConfirm, onClose }) {
+  const myPrices = (itemPrices || []).filter(p => p.item_id === item.itemId)
   const hasPreFill = !!(item.price && item.store)
   const [editing, setEditing] = useState(!hasPreFill)
   const [price, setPrice] = useState(item.price ? String(item.price) : '')
@@ -19,9 +18,6 @@ function PurchaseModal({ item, stores, itemPrices, onConfirm, onSkip, onClose })
   const [quantity, setQuantity] = useState(String(item.quantity || 1))
   const [unitSize, setUnitSize] = useState('')
   const [unitType, setUnitType] = useState('ml')
-
-  // 定番商品に紐付いた登録済み店別価格
-  const myPrices = (itemPrices || []).filter(p => p.item_id === item.itemId)
 
   const qty = Number(quantity) || 1
   const total = price && qty > 1 ? Number(price) * qty : null
@@ -33,26 +29,17 @@ function PurchaseModal({ item, stores, itemPrices, onConfirm, onSkip, onClose })
     setEditing(false)
   }
 
-  const handleConfirm = () => onConfirm({
-    price: price ? Number(price) : null,
-    store: storeName,
-    quantity: Number(quantity) || 1,
-    unitSize: unitSize ? Number(unitSize) : null,
-    unitType,
-  })
-
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={onClose}>
       <div className="bg-white w-full rounded-t-3xl p-6 space-y-4 max-h-[90vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}>
-        <h3 className="font-bold text-gray-800 text-center">購入を記録</h3>
+        <h3 className="font-bold text-gray-800 text-center">購入情報を記録</h3>
         <p className="text-center font-medium text-gray-700">
           {item.name}
           {qty > 1 && <span className="text-gray-400 text-sm font-normal"> × {qty}</span>}
         </p>
 
         {!editing ? (
-          /* ── クイック確認モード ── */
           <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-500">お店</span>
@@ -69,9 +56,7 @@ function PurchaseModal({ item, stores, itemPrices, onConfirm, onSkip, onClose })
               className="w-full text-xs text-blue-500 text-right pt-0.5">変更 ›</button>
           </div>
         ) : (
-          /* ── 詳細入力モード ── */
           <div className="space-y-3">
-            {/* 登録済み価格サジェスト */}
             {myPrices.length > 0 && (
               <div className="bg-blue-50 rounded-xl p-3">
                 <p className="text-xs text-gray-500 mb-2">登録済み価格からワンタップ入力</p>
@@ -90,8 +75,8 @@ function PurchaseModal({ item, stores, itemPrices, onConfirm, onSkip, onClose })
               <div>
                 <label className="text-xs text-gray-400 mb-1 block">お店</label>
                 <input className="input" placeholder="例: イオン" value={storeName}
-                  onChange={e => setStoreName(e.target.value)} list="purchase-store-list" />
-                <datalist id="purchase-store-list">
+                  onChange={e => setStoreName(e.target.value)} list="record-store-list" />
+                <datalist id="record-store-list">
                   {(stores||[]).map(s => <option key={s.id} value={s.name} />)}
                 </datalist>
               </div>
@@ -119,21 +104,68 @@ function PurchaseModal({ item, stores, itemPrices, onConfirm, onSkip, onClose })
                 </div>
               </div>
             </div>
-            {total && (
-              <p className="text-xs text-gray-400 text-right">合計 ¥{total.toLocaleString()}</p>
-            )}
+            {total && <p className="text-xs text-gray-400 text-right">合計 ¥{total.toLocaleString()}</p>}
           </div>
         )}
 
         <div className="flex gap-3">
-          <button onClick={onSkip}
+          <button onClick={onClose}
             className="flex-1 py-3 rounded-2xl border border-gray-200 text-gray-500 text-sm">
-            記録せず購入
+            キャンセル
           </button>
-          <button onClick={handleConfirm}
-            className="flex-1 py-3 rounded-2xl bg-emerald-500 text-white font-bold text-sm">
-            購入済みにする
+          <button onClick={() => onConfirm({
+            price: price ? Number(price) : null,
+            store: storeName,
+            quantity: qty,
+            unitSize: unitSize ? Number(unitSize) : null,
+            unitType,
+          })} className="flex-1 py-3 rounded-2xl bg-emerald-500 text-white font-bold text-sm">
+            記録して完了
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// 今日買ったもの：家計簿エントリの編集モーダル
+function FinanceEditModal({ entry, stores, onSave, onDelete, onClose }) {
+  const CATS = ['食料品', '日用品', '医薬品', '衣類', 'その他', '食費', '外食']
+  const [name, setName] = useState(entry.name || '')
+  const [storeName, setStoreName] = useState(entry.store || '')
+  const [amount, setAmount] = useState(String(entry.amount || ''))
+  const [category, setCategory] = useState(entry.category || '食費')
+  const [note, setNote] = useState(entry.note || '')
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={onClose}>
+      <div className="bg-white w-full rounded-t-3xl p-6 space-y-4" onClick={e => e.stopPropagation()}>
+        <h3 className="font-bold text-gray-800 text-center">記録を修正</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <label className="text-xs text-gray-400 mb-1 block">商品名</label>
+            <input className="input" value={name} onChange={e => setName(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 mb-1 block">お店</label>
+            <input className="input" value={storeName} onChange={e => setStoreName(e.target.value)} list="fedit-store-list" />
+            <datalist id="fedit-store-list">{(stores||[]).map(s => <option key={s.id} value={s.name} />)}</datalist>
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 mb-1 block">金額（円）</label>
+            <input type="number" className="input" value={amount} onChange={e => setAmount(e.target.value)} />
+          </div>
+        </div>
+        <select className="input" value={category} onChange={e => setCategory(e.target.value)}>
+          {CATS.map(c => <option key={c}>{c}</option>)}
+        </select>
+        <input className="input" placeholder="メモ" value={note} onChange={e => setNote(e.target.value)} />
+        <div className="flex gap-3">
+          <button onClick={() => onDelete(entry.id)}
+            className="py-3 px-4 rounded-2xl border border-red-100 text-red-400 text-sm">削除</button>
+          <button onClick={onClose}
+            className="flex-1 py-3 rounded-2xl border border-gray-200 text-gray-500 text-sm">キャンセル</button>
+          <button onClick={() => onSave(entry.id, { name, store: storeName, amount: Number(amount), category, note })}
+            className="flex-1 py-3 rounded-2xl bg-emerald-500 text-white font-bold text-sm">保存</button>
         </div>
       </div>
     </div>
@@ -213,7 +245,8 @@ function AddModal({ stores, onAdd, onClose }) {
 export default function Home({ store }) {
   const { list, finance, getDueItems, items, getFutureSpendings, getMonthlyForecast, budgets,
     addToList, toggleListItem, deleteListItem, updateListItem, clearChecked, addItemToList,
-    checkAndRecord, getSuggestions, stores, syncing, manualSync, pendingWrites, itemPrices } = store
+    finalizeListItem, getSuggestions, stores, syncing, manualSync, pendingWrites,
+    itemPrices, updateFinance, deleteFinance } = store
 
   const [period, setPeriod] = useState('month') // 'week' | 'month'
   const [quickAdd, setQuickAdd] = useState('')
@@ -221,7 +254,8 @@ export default function Home({ store }) {
   const [showRegular, setShowRegular] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [editTarget, setEditTarget] = useState(null)
-  const [purchaseTarget, setPurchaseTarget] = useState(null)
+  const [recordTarget, setRecordTarget] = useState(null)   // 記録モーダル対象
+  const [financeEditTarget, setFinanceEditTarget] = useState(null) // 家計簿編集対象
   const [listView, setListView] = useState('all') // 'all' | 'store'
 
   const dueItems = getDueItems()
@@ -338,10 +372,12 @@ export default function Home({ store }) {
     setSuggestions([])
   }
 
-  const handleCheck = (item) => {
-    if (!item.checked) setPurchaseTarget(item)
-    else toggleListItem(item.id)
-  }
+  // チェック = カートに入れる/外す（記録はしない）
+  const handleCheck = (item) => toggleListItem(item.id)
+
+  // 今日の支出記録
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayBought = finance.filter(f => f.type === 'expense' && f.date === todayStr)
 
   useEffect(() => {
     requestPermission().then(ok => { if (ok) scheduleCheck(getDueItems) })
@@ -350,15 +386,18 @@ export default function Home({ store }) {
   return (
     <div className="space-y-3 pb-24">
 
-      {purchaseTarget && (
-        <PurchaseModal
-          item={purchaseTarget} stores={stores||[]} itemPrices={itemPrices||[]}
-          onConfirm={({ price, store: s, quantity, unitSize, unitType }) => {
-            checkAndRecord(purchaseTarget.id, { price, store: s, quantity, unitSize, unitType })
-            setPurchaseTarget(null)
-          }}
-          onSkip={() => { toggleListItem(purchaseTarget.id); setPurchaseTarget(null) }}
-          onClose={() => setPurchaseTarget(null)} />
+      {recordTarget && (
+        <RecordModal
+          item={recordTarget} stores={stores||[]} itemPrices={itemPrices||[]}
+          onConfirm={(data) => { finalizeListItem(recordTarget.id, data); setRecordTarget(null) }}
+          onClose={() => setRecordTarget(null)} />
+      )}
+      {financeEditTarget && (
+        <FinanceEditModal
+          entry={financeEditTarget} stores={stores||[]}
+          onSave={(id, patch) => { updateFinance(id, patch); setFinanceEditTarget(null) }}
+          onDelete={(id) => { deleteFinance(id); setFinanceEditTarget(null) }}
+          onClose={() => setFinanceEditTarget(null)} />
       )}
       {editTarget && (
         <EditModal item={editTarget} stores={stores||[]}
@@ -632,30 +671,66 @@ export default function Home({ store }) {
         )}
 
         {checked.length > 0 && (
-          <div className="border-t border-gray-50">
-            <div className="flex items-center justify-between px-4 pt-2 pb-1">
-              <div>
-                <p className="text-xs text-gray-400">購入済み {checked.length}件</p>
-                {checkedTotal > 0 && (
-                  <p className="text-xs font-bold text-emerald-600">合計 ¥{checkedTotal.toLocaleString()}</p>
-                )}
-              </div>
-              <button onClick={clearChecked} className="text-xs text-red-400 px-2 py-1">クリア</button>
+          <div className="border-t border-gray-100">
+            <div className="flex items-center justify-between px-4 pt-3 pb-1">
+              <p className="text-xs font-semibold text-gray-400">カート・記録待ち {checked.length}件</p>
             </div>
             {checked.map(item => (
-              <div key={item.id} className="flex items-center gap-3 px-4 py-2.5 opacity-50">
-                <Check size={16} className="text-emerald-400 shrink-0" />
+              <div key={item.id} className="flex items-center gap-3 px-4 py-3 bg-amber-50/60">
+                <button onClick={() => handleCheck(item)}
+                  className="w-6 h-6 rounded-full bg-emerald-100 border-2 border-emerald-400 flex items-center justify-center shrink-0 active:bg-emerald-200">
+                  <Check size={12} className="text-emerald-500" />
+                </button>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm line-through text-gray-500 truncate">{item.name}</p>
-                  {item.note && <p className="text-xs text-gray-400 truncate">{item.note}</p>}
+                  <p className="text-sm text-gray-600 truncate">{item.name}</p>
+                  {(item.store || item.price) && (
+                    <p className="text-xs text-gray-400 truncate">
+                      {[item.store, item.price ? `¥${Number(item.price).toLocaleString()}` : null].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
                 </div>
-                {item.price && <span className="text-xs text-gray-400 shrink-0">¥{Number(item.price).toLocaleString()}</span>}
-                <button onClick={() => deleteListItem(item.id)} className="text-gray-200 p-1 shrink-0"><X size={15} /></button>
+                <button onClick={() => setRecordTarget(item)}
+                  className="text-xs bg-emerald-500 text-white rounded-xl px-3 py-1.5 font-semibold shrink-0 active:bg-emerald-600">
+                  記録
+                </button>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* ── 今日買ったもの ── */}
+      {todayBought.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="flex items-center justify-between px-4 pt-4 pb-2">
+            <p className="font-bold text-gray-800 flex items-center gap-2 text-sm">
+              <Check size={15} className="text-emerald-500" />
+              今日買ったもの
+              <span className="text-xs text-gray-400 font-normal">{todayBought.length}件</span>
+            </p>
+            <p className="text-xs font-bold text-emerald-600">
+              ¥{todayBought.reduce((s, f) => s + (f.amount || 0), 0).toLocaleString()}
+            </p>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {todayBought.map(f => (
+              <button key={f.id} onClick={() => setFinanceEditTarget(f)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-gray-50">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-800 truncate">{f.name}</p>
+                  <p className="text-xs text-gray-400 truncate">
+                    {[f.store, f.category].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+                <span className="text-sm font-semibold text-gray-700 shrink-0">
+                  ¥{Number(f.amount || 0).toLocaleString()}
+                </span>
+                <Pencil size={12} className="text-gray-300 shrink-0" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

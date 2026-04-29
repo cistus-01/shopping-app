@@ -354,9 +354,50 @@ export function useStore() {
     api('/finance', { method: 'POST', body: JSON.stringify(r) })
   }
 
+  const updateFinance = (id, patch) => {
+    setFinance(p => p.map(x => x.id === id ? { ...x, ...patch } : x))
+    api(`/finance/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
+  }
+
   const deleteFinance = (id) => {
     setFinance(p => p.filter(x => x.id !== id))
     api(`/finance/${id}`, { method: 'DELETE' })
+  }
+
+  // チェック済みアイテムを記録して一覧から削除
+  const finalizeListItem = (listItemId, { price, store: storeName, quantity = 1, unitSize = null, unitType = null } = {}) => {
+    const li = list.find(x => x.id === listItemId)
+    if (!li) return
+    const effectiveStore = storeName || li.store
+    const effectivePrice = price ?? li.price
+    const effectiveQty = quantity || li.quantity || 1
+
+    if (li.itemId && effectivePrice) {
+      recordPurchase(li.itemId, { price: effectivePrice, store: effectiveStore, quantity: effectiveQty, unitSize, unitType })
+    }
+    if (effectivePrice) {
+      addFinance({
+        type: 'expense', category: li.category || '食費',
+        name: li.name, store: effectiveStore,
+        amount: effectivePrice * effectiveQty,
+        date: new Date().toISOString().slice(0, 10),
+      })
+    }
+    // 新しい店なら自動登録
+    if (effectiveStore?.trim() && !stores.some(s => s.name === effectiveStore.trim())) {
+      addStore({ name: effectiveStore.trim(), category: 'スーパー', note: '自動登録' })
+    }
+    // 同じ店で価格が違えばitem_store_pricesを更新（家計簿の過去データは触らない）
+    if (li.itemId && effectiveStore && effectivePrice != null) {
+      const existing = itemPrices.find(p => p.item_id === li.itemId && p.store_name === effectiveStore)
+      if (existing && Number(existing.price) !== Number(effectivePrice)) {
+        updateItemPrice(existing.id, {
+          price: effectivePrice,
+          ...(unitSize != null ? { unit_size: unitSize, unit_type: unitType || '個' } : {}),
+        })
+      }
+    }
+    deleteListItem(listItemId)
   }
 
   // ── 予算 ─────────────────────────────────────────
@@ -538,9 +579,9 @@ export function useStore() {
     items, list, finance, stores, budgets, listHistory, recurring, itemPrices,
     addItem, updateItem, deleteItem, recordPurchase,
     addItemPrice, updateItemPrice, deleteItemPrice,
-    addToList, updateListItem, toggleListItem, deleteListItem, clearChecked, addItemToList, checkAndRecord,
+    addToList, updateListItem, toggleListItem, deleteListItem, clearChecked, addItemToList, checkAndRecord, finalizeListItem,
     addStore, updateStore, deleteStore, storeNames,
-    addFinance, deleteFinance,
+    addFinance, updateFinance, deleteFinance,
     setMonthlyBudget, setCategoryBudget,
     addRecurring, updateRecurring, deleteRecurring,
     getDueItems, getFutureSpendings, getBudgetInsights, getMonthlyForecast,
