@@ -1,6 +1,35 @@
 import { useState, useEffect, useRef } from 'react'
+import { SUBCATEGORY_ALIASES } from '../utils/categories'
 
-const API = import.meta.env.VITE_API_URL || 'http://192.168.68.59:4000'
+const API = import.meta.env.VITE_API_URL || 'http://192.168.68.59:3000'
+
+// 在庫推定: 購入履歴の数量から「1個あたりの消費日数」を計算し現在の残量を推定
+export function getStockInfo(item) {
+  const history = item.purchaseHistory || []
+  if (history.length < 2 || !item.lastBoughtAt) return null
+
+  const sorted = [...history].sort((a, b) => new Date(a.date) - new Date(b.date))
+
+  // 購入間隔 ÷ その時の購入数 = 1個あたりの消費日数
+  const rates = []
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const days = (new Date(sorted[i + 1].date) - new Date(sorted[i].date)) / 86400000
+    const qty = sorted[i].quantity || 1
+    if (days > 0) rates.push(days / qty)
+  }
+  if (rates.length === 0) return null
+
+  const perUnitDays = rates.reduce((a, b) => a + b) / rates.length
+  const lastQty = sorted[sorted.length - 1].quantity || 1
+  const daysSinceLast = (Date.now() - new Date(item.lastBoughtAt).getTime()) / 86400000
+
+  const unitsConsumed = daysSinceLast / perUnitDays
+  const estimatedRemaining = Math.max(0, lastQty - unitsConsumed)
+  const remainingPct = estimatedRemaining / lastQty
+  const daysUntilRunout = Math.round(estimatedRemaining * perUnitDays)
+
+  return { perUnitDays, lastQty, estimatedRemaining, remainingPct, daysUntilRunout }
+}
 
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
@@ -24,6 +53,7 @@ function normalizeItem(r) {
     lastBoughtAt: r.last_bought_at || r.lastBoughtAt || null,
     purchaseHistory: r.purchase_history || r.purchaseHistory || [],
     notes: r.notes || '',
+    trackingType: r.tracking_type || r.trackingType || null,
     createdAt: r.created_at || r.createdAt || null,
   }
 }
@@ -111,7 +141,7 @@ export function useStore() {
         )
         if (externNew.length > 0) {
           const names = externNew.map(x => x.name).slice(0, 3).join('、')
-          new Notification('かいもの帳 - リスト更新', {
+          new Notification('Kago - リスト更新', {
             body: `${names}が追加されました`,
             icon: '/icon-192.png',
             tag: 'list-update',
@@ -366,12 +396,13 @@ export function useStore() {
   }
 
   // チェック済みアイテムを記録して一覧から削除
-  const finalizeListItem = (listItemId, { price, store: storeName, quantity = 1, unitSize = null, unitType = null } = {}) => {
+  const finalizeListItem = (listItemId, { name: overrideName, price, store: storeName, quantity = 1, unitSize = null, unitType = null } = {}) => {
     const li = list.find(x => x.id === listItemId)
     if (!li) return
     const effectiveStore = storeName || li.store
     const effectivePrice = price ?? li.price
     const effectiveQty = quantity || li.quantity || 1
+    const effectiveName = (overrideName && overrideName !== li.name) ? overrideName : li.name
 
     if (li.itemId && effectivePrice) {
       recordPurchase(li.itemId, { price: effectivePrice, store: effectiveStore, quantity: effectiveQty, unitSize, unitType })
@@ -379,7 +410,7 @@ export function useStore() {
     if (effectivePrice) {
       addFinance({
         type: 'expense', category: li.category || '食費',
-        name: li.name, store: effectiveStore,
+        name: effectiveName, store: effectiveStore,
         amount: effectivePrice * effectiveQty,
         date: new Date().toISOString().slice(0, 10),
       })
@@ -428,11 +459,29 @@ export function useStore() {
 
   // ── 買い時チェック ─────────────────────────────────
   const getDueItems = () => {
-    const now = new Date()
     return items.filter(item => {
       if (!item.cycleDays || !item.lastBoughtAt) return false
-      return (now - new Date(item.lastBoughtAt)) / 86400000 >= item.cycleDays * 0.9
+      if (item.trackingType === 'cycle') {
+        // 定期チェック: 周期の85%経過で "買い時"
+        const elapsed = (Date.now() - new Date(item.lastBoughtAt).getTime()) / 86400000
+        return elapsed >= item.cycleDays * 0.85
+      }
+      // ストック管理: 在庫残量ベース優先
+      const stock = getStockInfo(item)
+      if (stock) return stock.remainingPct <= 0.2
+      return (Date.now() - new Date(item.lastBoughtAt).getTime()) / 86400000 >= item.cycleDays * 0.9
     })
+  }
+
+  // ── 前回のお買い物セッション ───────────────────────────
+  const getLastSession = () => {
+    const today = new Date().toISOString().slice(0, 10)
+    const expenses = finance
+      .filter(f => f.type === 'expense' && f.date && f.date !== today)
+      .sort((a, b) => b.date.localeCompare(a.date))
+    if (!expenses.length) return null
+    const lastDate = expenses[0].date
+    return { date: lastDate, items: expenses.filter(f => f.date === lastDate) }
   }
 
   // ── 来週の出費予測 ──────────────────────────────────
@@ -441,8 +490,15 @@ export function useStore() {
     const future = []
     items.forEach(item => {
       if (!item.cycleDays || !item.price || !item.lastBoughtAt) return
-      const nextDate = new Date(new Date(item.lastBoughtAt).getTime() + item.cycleDays * 86400000)
-      const daysUntil = (nextDate - now) / 86400000
+      const stock = getStockInfo(item)
+      let daysUntil, nextDate
+      if (stock) {
+        daysUntil = stock.daysUntilRunout
+        nextDate = new Date(Date.now() + daysUntil * 86400000)
+      } else {
+        nextDate = new Date(new Date(item.lastBoughtAt).getTime() + item.cycleDays * 86400000)
+        daysUntil = (nextDate - now) / 86400000
+      }
       if (daysUntil <= days && daysUntil > -item.cycleDays * 0.5) {
         future.push({ item, nextDate, daysUntil: Math.round(daysUntil) })
       }
@@ -549,19 +605,29 @@ export function useStore() {
   const getSuggestions = (query) => {
     if (!query.trim()) return []
     const q = query.toLowerCase()
-    const results = [], seen = new Set()
+    const nameMatches = [], subcatMatches = [], seen = new Set()
     items.forEach(item => {
-      if (item.name.toLowerCase().includes(q)) {
-        results.push({ name: item.name, store: item.store, price: item.price, category: item.category, itemRef: item })
+      const nameHit = item.name.toLowerCase().includes(q)
+      const aliases = item.subcategory ? (SUBCATEGORY_ALIASES[item.subcategory] || []) : []
+      const subcatHit = !nameHit && item.subcategory && (
+        item.subcategory.toLowerCase().includes(q) ||
+        aliases.some(a => a.toLowerCase().includes(q))
+      )
+      if (nameHit) {
+        nameMatches.push({ name: item.name, store: item.store, price: item.price, category: item.category, subcategory: item.subcategory, itemRef: item, matchReason: 'name' })
+        seen.add(item.name)
+      } else if (subcatHit) {
+        subcatMatches.push({ name: item.name, store: item.store, price: item.price, category: item.category, subcategory: item.subcategory, itemRef: item, matchReason: 'subcategory' })
         seen.add(item.name)
       }
     })
+    const results = [...nameMatches, ...subcatMatches]
     Object.entries(listHistory).forEach(([name, data]) => {
       if (!seen.has(name) && name.toLowerCase().includes(q)) {
-        results.push({ name, ...data })
+        results.push({ name, ...data, matchReason: 'history' })
       }
     })
-    return results.slice(0, 6)
+    return results.slice(0, 8)
   }
 
   // ── ログイン・ログアウト ──────────────────────────────
@@ -598,6 +664,7 @@ export function useStore() {
     setMonthlyBudget, setCategoryBudget,
     addRecurring, updateRecurring, deleteRecurring,
     getDueItems, getFutureSpendings, getBudgetInsights, getMonthlyForecast,
+    getLastSession,
     getSuggestions, backup, restore,
   }
 }

@@ -63,7 +63,7 @@ export default function Login({ onLogin }) {
           <div className="w-16 h-16 bg-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-200">
             <ShoppingCart size={32} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-800">かいもの帳</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Kago</h1>
           <p className="text-gray-400 text-sm mt-1">
             {mode === 'register' ? 'アカウントを作成' : 'ログイン'}
           </p>

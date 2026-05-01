@@ -254,7 +254,7 @@ export default function Finance({ store }) {
     e.preventDefault()
     if (!form.amount) return
     addFinance({ ...form, amount: Number(form.amount) })
-    setForm(p => ({ ...p, amount: '', note: '', name: '', store: '' }))
+    setForm({ type: 'expense', date: format(new Date(), 'yyyy-MM-dd'), amount: '', category: '食費', note: '', store: '', name: '' })
     setShowForm(false)
   }
 

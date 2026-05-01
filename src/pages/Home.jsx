@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { AlertCircle, ChevronRight, Plus, X, Check, RefreshCw, Pencil, ShoppingCart, Store, LayoutList } from 'lucide-react'
+import { AlertCircle, ChevronRight, Plus, X, Check, RefreshCw, Pencil, ShoppingCart, Store, LayoutList, History } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { format, startOfWeek, endOfWeek } from 'date-fns'
 import { ja } from 'date-fns/locale'
@@ -13,6 +13,7 @@ function RecordModal({ item, stores, itemPrices, onConfirm, onClose }) {
   const myPrices = (itemPrices || []).filter(p => p.item_id === item.itemId)
   const hasPreFill = !!(item.price && item.store)
   const [editing, setEditing] = useState(!hasPreFill)
+  const [recordName, setRecordName] = useState(item.name)
   const [price, setPrice] = useState(item.price ? String(item.price) : '')
   const [storeName, setStoreName] = useState(item.store || '')
   const [quantity, setQuantity] = useState(String(item.quantity || 1))
@@ -34,10 +35,15 @@ function RecordModal({ item, stores, itemPrices, onConfirm, onClose }) {
       <div className="bg-white w-full rounded-t-3xl p-6 space-y-4 max-h-[90vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}>
         <h3 className="font-bold text-gray-800 text-center">購入情報を記録</h3>
-        <p className="text-center font-medium text-gray-700">
-          {item.name}
-          {qty > 1 && <span className="text-gray-400 text-sm font-normal"> × {qty}</span>}
-        </p>
+        <div>
+          <input
+            className="w-full text-center font-medium text-gray-800 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-400 focus:bg-white transition-colors"
+            value={recordName}
+            onChange={e => setRecordName(e.target.value)}
+            placeholder="商品名"
+          />
+          {qty > 1 && <p className="text-center text-gray-400 text-xs mt-1">× {qty}</p>}
+        </div>
 
         {!editing ? (
           <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 space-y-2">
@@ -114,6 +120,7 @@ function RecordModal({ item, stores, itemPrices, onConfirm, onClose }) {
             キャンセル
           </button>
           <button onClick={() => onConfirm({
+            name: recordName.trim() || item.name,
             price: price ? Number(price) : null,
             store: storeName,
             quantity: qty,
@@ -245,7 +252,7 @@ function AddModal({ stores, onAdd, onClose }) {
 export default function Home({ store }) {
   const { list, finance, getDueItems, items, getFutureSpendings, getMonthlyForecast, budgets,
     addToList, toggleListItem, deleteListItem, updateListItem, clearChecked, addItemToList,
-    finalizeListItem, getSuggestions, stores, syncing, manualSync, pendingWrites,
+    finalizeListItem, getSuggestions, getLastSession, stores, syncing, manualSync, pendingWrites,
     itemPrices, updateFinance, deleteFinance, updateItem } = store
 
   const [period, setPeriod] = useState('month') // 'week' | 'month'
@@ -257,6 +264,7 @@ export default function Home({ store }) {
   const [recordTarget, setRecordTarget] = useState(null)   // 記録モーダル対象
   const [financeEditTarget, setFinanceEditTarget] = useState(null) // 家計簿編集対象
   const [listView, setListView] = useState('all') // 'all' | 'store'
+  const [showLastSession, setShowLastSession] = useState(false)
 
   const dueItems = getDueItems()
   const unchecked = list.filter(x => !x.checked)
@@ -417,8 +425,11 @@ export default function Home({ store }) {
       <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-3xl p-5 text-white shadow-lg shadow-emerald-200">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <p className="text-emerald-200 text-xs">{format(today, 'M月d日（E）', { locale: ja })}</p>
-            <h1 className="text-lg font-bold">かいもの帳</h1>
+            <p className="text-emerald-200/70 text-[10px] tracking-widest uppercase font-medium">{format(today, 'M月d日（E）', { locale: ja })}</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <ShoppingCart size={17} strokeWidth={2.8} className="text-white/90" />
+              <h1 className="text-xl font-black tracking-[0.12em] drop-shadow-sm">KAGO</h1>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {/* 週/月 切り替え */}
@@ -593,18 +604,52 @@ export default function Home({ store }) {
                 className="w-full flex items-center gap-3 px-4 py-3 text-left border-b border-gray-50 last:border-b-0 active:bg-emerald-50">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-800">{s.name}</p>
-                  <p className="text-xs text-gray-400">{[s.category, s.store, s.price ? `¥${Number(s.price).toLocaleString()}` : null].filter(Boolean).join(' · ')}</p>
+                  <p className="text-xs text-gray-400">
+                    {s.matchReason === 'subcategory'
+                      ? <span className="text-emerald-500 font-medium">{s.subcategory}</span>
+                      : null}
+                    {s.matchReason === 'subcategory' && (s.store || s.price) ? ' · ' : null}
+                    {[s.store, s.price ? `¥${Number(s.price).toLocaleString()}` : null].filter(Boolean).join(' · ')}
+                    {s.matchReason !== 'subcategory' && s.category ? ` · ${s.category}` : null}
+                  </p>
                 </div>
-                {s.itemRef && <span className="text-xs text-blue-400 shrink-0">定番</span>}
+                {s.matchReason === 'subcategory' && <span className="text-xs text-emerald-400 shrink-0">分類</span>}
+                {s.itemRef && s.matchReason !== 'subcategory' && <span className="text-xs text-blue-400 shrink-0">定番</span>}
                 <Plus size={15} className="text-emerald-400 shrink-0" />
               </button>
             ))}
           </div>
         )}
 
-        {unchecked.length === 0 && checked.length === 0 && (
-          <p className="text-center text-gray-300 text-sm py-6">リストが空です</p>
-        )}
+        {unchecked.length === 0 && checked.length === 0 && (() => {
+          const lastSession = getLastSession()
+          return lastSession ? (
+            <div className="mx-4 mb-3">
+              <button
+                onClick={() => {
+                  lastSession.items.forEach(f => addToList({
+                    name: f.name, store: f.store,
+                    price: f.amount, category: f.category || 'その他', quantity: 1,
+                  }))
+                }}
+                className="w-full bg-gray-50 border border-dashed border-gray-200 rounded-2xl p-4 flex items-center gap-3 active:bg-emerald-50 active:border-emerald-300 transition-colors">
+                <div className="w-9 h-9 bg-gray-100 rounded-xl flex items-center justify-center shrink-0">
+                  <History size={17} className="text-gray-400" />
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-semibold text-gray-600">前回の買い物を読み込む</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {new Date(lastSession.date).toLocaleDateString('ja', { month: 'long', day: 'numeric' })}
+                    {' · '}{lastSession.items.length}点
+                  </p>
+                </div>
+                <ChevronRight size={16} className="text-gray-300 shrink-0" />
+              </button>
+            </div>
+          ) : (
+            <p className="text-center text-gray-300 text-sm py-6">リストが空です</p>
+          )
+        })()}
 
         {/* リスト合計（価格情報がある場合） */}
         {unchecked.length > 0 && uncheckedTotal > 0 && (

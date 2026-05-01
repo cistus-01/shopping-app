@@ -15,7 +15,7 @@ export function scheduleCheck(getDueItems) {
   localStorage.setItem('notify_due_date', today)
   const names = due.slice(0, 3).map(i => i.name).join('、')
   const extra = due.length > 3 ? `など${due.length}品` : ''
-  new Notification('かいもの帳 - 買い時のお知らせ', {
+  new Notification('Kago - 買い時のお知らせ', {
     body: `そろそろ買い時：${names}${extra}`,
     icon: '/icon-192.png',
     badge: '/icon-192.png',

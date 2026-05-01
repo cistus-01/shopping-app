@@ -23,9 +23,10 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'icon-192.png', 'icon-512.png'],
       manifest: {
-        name: 'かいもの帳',
-        short_name: 'かいもの帳',
-        description: '買い物・家計管理アプリ',
+        name: 'Kago',
+        short_name: 'Kago',
+        description: '買い物も、家計も、これひとつ。',
+        lang: 'ja',
         theme_color: '#10b981',
         background_color: '#f0fdf4',
         display: 'standalone',

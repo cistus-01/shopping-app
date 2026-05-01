@@ -3,6 +3,7 @@ import { Plus, X, ShoppingCart, Store, Tag, TrendingDown, Pencil, Trash2 } from 
 import { formatDistanceToNow } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { ITEM_ICONS } from '../utils/categories'
+import { getStockInfo } from '../hooks/useStore'
 
 const CATEGORIES = ['食料品', '日用品', '医薬品', '衣類', 'その他']
 const UNIT_TYPES = ['個', 'ml', 'g', 'L', 'kg', '枚', '袋', '本', 'm']
@@ -120,6 +121,7 @@ function ItemCard({
     ? formatCycleDays(Math.round(item.cycleDays / avgQty))
     : null
   const lastPurchase = history.length > 0 ? history[history.length - 1] : null
+  const stockInfo = getStockInfo(item)
 
   const isAddingHere = priceFormItemId === item.id && priceFormMode === 'add'
   const isEditingPriceOf = (pid) =>
@@ -179,12 +181,44 @@ function ItemCard({
             ) : null}
 
             {cycleLabel && (
-              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                <span className="text-xs text-blue-400">🔄 {cycleLabel}ごと</span>
-                {unitCycleLabel && (
-                  <span className="text-xs text-gray-400">(1個あたり{unitCycleLabel})</span>
+              <div className="mt-1.5 space-y-1.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {item.trackingType === 'cycle'
+                    ? <span className="text-xs text-emerald-500">📅 {cycleLabel}ごと</span>
+                    : <span className="text-xs text-blue-400">📦 {cycleLabel}ごと</span>
+                  }
+                  {unitCycleLabel && (
+                    <span className="text-xs text-gray-400">(1個あたり{unitCycleLabel})</span>
+                  )}
+                  {nextLabel && (item.trackingType === 'cycle' || !stockInfo) && (
+                    <span className="text-xs text-gray-400">→ {nextLabel}</span>
+                  )}
+                </div>
+                {item.trackingType !== 'cycle' && stockInfo && (
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          stockInfo.remainingPct > 0.6 ? 'bg-emerald-400'
+                          : stockInfo.remainingPct > 0.3 ? 'bg-amber-400'
+                          : stockInfo.remainingPct > 0.1 ? 'bg-orange-400'
+                          : 'bg-red-400'
+                        }`}
+                        style={{ width: `${Math.max(3, Math.round(stockInfo.remainingPct * 100))}%` }}
+                      />
+                    </div>
+                    <span className={`text-xs shrink-0 w-16 text-right ${
+                      stockInfo.daysUntilRunout <= 0 ? 'text-red-400 font-semibold'
+                      : stockInfo.remainingPct <= 0.2 ? 'text-orange-400'
+                      : 'text-gray-400'
+                    }`}>
+                      {stockInfo.daysUntilRunout <= 0 ? '在庫切れ'
+                       : stockInfo.daysUntilRunout <= 3 ? `あと${stockInfo.daysUntilRunout}日`
+                       : stockInfo.daysUntilRunout <= 7 ? '今週中'
+                       : `残り約${stockInfo.daysUntilRunout}日`}
+                    </span>
+                  </div>
                 )}
-                {nextLabel && <span className="text-xs text-gray-400">→ {nextLabel}</span>}
               </div>
             )}
             {!cycleLabel && history.length === 1 && (
@@ -344,7 +378,7 @@ function ItemCard({
 
 // ─ メインコンポーネント ───────────────────────────────────
 
-const emptyForm = { name: '', store: '', price: '', category: '食料品', subcategory: '', notes: '' }
+const emptyForm = { name: '', category: '食料品', subcategory: '', notes: '', trackingType: null }
 const emptyPriceForm = { store_name: '', price: '', unit_size: '', unit_type: 'ml' }
 
 export default function Items({ store }) {
@@ -419,11 +453,10 @@ export default function Items({ store }) {
   const openEdit = (item) => {
     setForm({
       name: item.name,
-      store: item.store || '',
-      price: item.price != null ? String(item.price) : '',
       category: item.category || '食料品',
       subcategory: item.subcategory || '',
       notes: item.notes || '',
+      trackingType: item.trackingType || null,
     })
     setEditing(item.id)
     setShowForm(true)
@@ -433,11 +466,10 @@ export default function Items({ store }) {
     e.preventDefault()
     const data = {
       name: form.name.trim(),
-      store: form.store,
-      price: form.price ? Number(form.price) : null,
       category: form.category,
       subcategory: form.subcategory,
       notes: form.notes,
+      trackingType: form.trackingType,
     }
     if (editing) {
       updateItem(editing, data)
@@ -566,75 +598,132 @@ export default function Items({ store }) {
         </div>
       )}
 
-      {showForm && (
-        <div className="fixed inset-0 bg-black/40 z-40 flex items-end" onClick={() => setShowForm(false)}>
-          <form onSubmit={handleSubmit} onClick={e => e.stopPropagation()}
-            className="bg-white w-full rounded-t-3xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="font-bold text-gray-800 text-center">{editing ? '商品を編集' : '定番商品を追加'}</h3>
+      {showForm && (() => {
+        const myPrices = editing ? (itemPrices || []).filter(p => p.item_id === editing) : []
+        const sortedPrices = [...myPrices].sort((a, b) => a.price - b.price)
+        const cheapest = sortedPrices[0] || null
+        const history = editingItem?.purchaseHistory || []
+        const storeCounts = history.reduce((acc, h) => {
+          if (h.store) acc[h.store] = (acc[h.store] || 0) + 1
+          return acc
+        }, {})
+        const mostFreqStore = Object.keys(storeCounts).sort((a, b) => storeCounts[b] - storeCounts[a])[0] || null
 
-            <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-              placeholder="商品名 *" className="input" required autoFocus />
+        return (
+          <div className="fixed inset-0 bg-black/40 z-40 flex items-end" onClick={() => setShowForm(false)}>
+            <form onSubmit={handleSubmit} onClick={e => e.stopPropagation()}
+              className="bg-white w-full rounded-t-3xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+              <h3 className="font-bold text-gray-800 text-center">{editing ? '商品を編集' : '定番商品を追加'}</h3>
 
-            <div className="grid grid-cols-2 gap-3">
-              <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value, subcategory: '' }))}
-                className="input">
-                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-              </select>
-              <select value={form.subcategory} onChange={e => setForm(p => ({ ...p, subcategory: e.target.value }))}
-                className="input text-sm">
-                <option value="">サブカテゴリ（任意）</option>
-                {(SUBCATEGORIES[form.category] || []).map(s => <option key={s}>{s}</option>)}
-              </select>
-            </div>
+              <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                placeholder="商品名 *" className="input" required autoFocus />
 
-            <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value, subcategory: '' }))}
+                  className="input">
+                  {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                </select>
+                <select value={form.subcategory} onChange={e => setForm(p => ({ ...p, subcategory: e.target.value }))}
+                  className="input text-sm">
+                  <option value="">サブカテゴリ（任意）</option>
+                  {(SUBCATEGORIES[form.category] || []).map(s => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+
+              {editing && myPrices.length > 0 ? (
+                <div className="bg-gray-50 rounded-2xl px-4 py-3 space-y-2">
+                  <p className="text-xs text-gray-400">店・価格情報（変更はカードの💹ボタンから）</p>
+                  {cheapest && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {sortedPrices.length > 1 && (
+                        <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-md font-semibold">最安</span>
+                      )}
+                      <span className="text-sm font-bold text-gray-800">¥{Number(cheapest.price).toLocaleString()}</span>
+                      <span className="text-xs text-gray-500">{cheapest.store_name}</span>
+                      {sortedPrices.length > 1 && (
+                        <span className="text-xs text-gray-300">他{sortedPrices.length - 1}店</span>
+                      )}
+                    </div>
+                  )}
+                  {mostFreqStore && mostFreqStore !== cheapest?.store_name && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-md font-semibold">よく買う</span>
+                      <span className="text-xs text-gray-600">{mostFreqStore}</span>
+                      <span className="text-xs text-gray-300">{storeCounts[mostFreqStore]}回</span>
+                    </div>
+                  )}
+                </div>
+              ) : editing ? (
+                <p className="text-xs text-gray-300 text-center py-1">
+                  価格・店情報は商品カードの 💹 から追加できます
+                </p>
+              ) : null}
+
+              {/* 管理タイプ切り替え */}
               <div>
-                <input value={form.store} onChange={e => setForm(p => ({ ...p, store: e.target.value }))}
-                  placeholder="よく買うお店" className="input" list="items-store-list" />
-                <datalist id="items-store-list">
-                  {(stores || []).map(s => <option key={s.id} value={s.name} />)}
-                </datalist>
+                <p className="text-xs text-gray-400 mb-2">管理タイプ</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button"
+                    onClick={() => setForm(p => ({ ...p, trackingType: null }))}
+                    className={`rounded-2xl p-3 text-left transition-all border-2 ${
+                      form.trackingType !== 'cycle'
+                        ? 'border-blue-400 bg-blue-50'
+                        : 'border-gray-100 bg-gray-50'
+                    }`}>
+                    <p className="text-base mb-0.5">📦</p>
+                    <p className={`text-xs font-bold ${form.trackingType !== 'cycle' ? 'text-blue-600' : 'text-gray-500'}`}>ストック管理</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">使いきりで補充<br/>在庫バーで残量確認</p>
+                  </button>
+                  <button type="button"
+                    onClick={() => setForm(p => ({ ...p, trackingType: 'cycle' }))}
+                    className={`rounded-2xl p-3 text-left transition-all border-2 ${
+                      form.trackingType === 'cycle'
+                        ? 'border-emerald-400 bg-emerald-50'
+                        : 'border-gray-100 bg-gray-50'
+                    }`}>
+                    <p className="text-base mb-0.5">📅</p>
+                    <p className={`text-xs font-bold ${form.trackingType === 'cycle' ? 'text-emerald-600' : 'text-gray-500'}`}>定期チェック</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">週次・毎日の買い物<br/>周期で買い時を提案</p>
+                  </button>
+                </div>
               </div>
-              <input type="number" value={form.price}
-                onChange={e => setForm(p => ({ ...p, price: e.target.value }))}
-                placeholder="デフォルト価格 (¥)" className="input" />
-            </div>
 
-            <div className="bg-blue-50 rounded-2xl px-4 py-3 flex items-start gap-3">
-              <span className="text-xl leading-tight">🔄</span>
-              <div className="flex-1">
-                {editingItem?.cycleDays ? (
-                  <>
-                    <p className="text-sm font-semibold text-blue-600">
-                      現在の周期：{formatCycleDays(editingItem.cycleDays)}ごと
-                    </p>
-                    <p className="text-xs text-blue-400 mt-0.5">購入するたびに自動で更新されます</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm font-semibold text-gray-600">補充周期は自動計算</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      購入を2回記録すると、自動的に周期が計算されます
-                    </p>
-                  </>
-                )}
+              <div className={`rounded-2xl px-4 py-3 flex items-start gap-3 ${form.trackingType === 'cycle' ? 'bg-emerald-50' : 'bg-blue-50'}`}>
+                <span className="text-xl leading-tight">{form.trackingType === 'cycle' ? '📅' : '🔄'}</span>
+                <div className="flex-1">
+                  {editingItem?.cycleDays ? (
+                    <>
+                      <p className={`text-sm font-semibold ${form.trackingType === 'cycle' ? 'text-emerald-600' : 'text-blue-600'}`}>
+                        現在の周期：{formatCycleDays(editingItem.cycleDays)}ごと
+                      </p>
+                      <p className={`text-xs mt-0.5 ${form.trackingType === 'cycle' ? 'text-emerald-400' : 'text-blue-400'}`}>購入するたびに自動で更新されます</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-semibold text-gray-600">補充周期は自動計算</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        購入を2回記録すると、自動的に周期が計算されます
+                      </p>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
 
-            <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
-              placeholder="メモ（任意）" className="input resize-none h-16" />
+              <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+                placeholder="メモ（任意）" className="input resize-none h-16" />
 
-            <div className="flex gap-3 pb-safe">
-              <button type="button" onClick={() => setShowForm(false)}
-                className="flex-1 py-3 rounded-2xl border border-gray-200 text-gray-500">キャンセル</button>
-              <button type="submit"
-                className="flex-1 py-3 rounded-2xl bg-emerald-500 text-white font-bold">
-                {editing ? '保存' : '追加'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+              <div className="flex gap-3 pb-safe">
+                <button type="button" onClick={() => setShowForm(false)}
+                  className="flex-1 py-3 rounded-2xl border border-gray-200 text-gray-500">キャンセル</button>
+                <button type="submit"
+                  className="flex-1 py-3 rounded-2xl bg-emerald-500 text-white font-bold">
+                  {editing ? '保存' : '追加'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )
+      })()}
 
       <button onClick={() => { setForm(emptyForm); setEditing(null); setShowForm(true) }}
         className="fixed bottom-24 right-4 w-14 h-14 bg-emerald-500 rounded-full shadow-lg flex items-center justify-center text-white z-30">
