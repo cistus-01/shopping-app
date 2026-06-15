@@ -1,111 +1,164 @@
-import { useState, useEffect } from 'react'
-import { ShoppingCart } from 'lucide-react'
+import { useState } from 'react'
+import MoSoroLogo from '../components/MoSoroLogo'
 
-const API = import.meta.env.VITE_API_URL || '/api'
+const API = import.meta.env.VITE_API_URL || ''
 
-export default function Login({ onLogin }) {
-  const [mode, setMode] = useState('login')  // 'login' | 'register'
+function LoginForm({ onLogin }) {
   const [username, setUsername] = useState('')
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    fetch(`${API}/users`)
-      .then(r => r.json())
-      .then(d => { if (d.count === 0) setMode('register') })
-      .catch(() => {})
-  }, [])
-
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!username.trim() || pin.length !== 4) {
-      setError('ユーザー名と4桁のPINを入力してください')
-      return
-    }
+    if (!username.trim() || !pin.trim()) return
     setLoading(true)
     setError('')
     try {
-      if (mode === 'register') {
-        const r = await fetch(`${API}/auth/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: username.trim(), pin }),
-        })
-        if (!r.ok) {
-          const d = await r.json()
-          setError(d.error || '登録に失敗しました')
-          setLoading(false)
-          return
-        }
-      }
-      const r = await fetch(`${API}/auth/login`, {
+      const r = await fetch(`${API}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username.trim(), pin }),
       })
-      const d = await r.json()
-      if (!r.ok) {
-        setError(d.error || 'ログインに失敗しました')
-      } else {
-        onLogin(d.token, d.username)
-      }
+      if (!r.ok) { setError('ユーザー名またはPINが違います'); setLoading(false); return }
+      const data = await r.json()
+      onLogin(data.token, data.username)
     } catch {
-      setError('サーバーに接続できません')
+      setError('サーバーに接続できませんでした')
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-white flex items-center justify-center p-4">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-200">
-            <ShoppingCart size={32} className="text-white" />
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <input
+        value={username}
+        onChange={e => setUsername(e.target.value)}
+        placeholder="ユーザー名"
+        className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-4 text-base outline-none focus:border-emerald-400 transition-colors"
+        autoCapitalize="none"
+        autoCorrect="off"
+        autoComplete="username"
+      />
+      <input
+        type="password"
+        inputMode="numeric"
+        value={pin}
+        onChange={e => setPin(e.target.value)}
+        placeholder="PIN番号"
+        className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-4 text-base outline-none focus:border-emerald-400 transition-colors"
+        autoComplete="current-password"
+      />
+      {error && <p className="text-red-400 text-sm text-center bg-red-50 rounded-xl py-2">{error}</p>}
+      <button type="submit" disabled={loading}
+        className="w-full py-4 bg-emerald-500 text-white font-bold rounded-2xl text-base shadow-lg shadow-emerald-200 active:bg-emerald-600 disabled:opacity-60 transition-all mt-2">
+        {loading ? 'ログイン中...' : 'ログイン'}
+      </button>
+    </form>
+  )
+}
+
+function RegisterForm({ onDone }) {
+  const [username, setUsername] = useState('')
+  const [pin, setPin] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!username.trim()) { setError('ユーザー名を入力してください'); return }
+    if (pin.length < 4) { setError('PINは4文字以上で設定してください'); return }
+    if (pin !== confirm) { setError('PINが一致しません'); return }
+    setLoading(true)
+    setError('')
+    try {
+      const r = await fetch(`${API}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), pin }),
+      })
+      if (r.status === 409) { setError('このユーザー名はすでに使われています'); setLoading(false); return }
+      if (!r.ok) { setError('エラーが発生しました'); setLoading(false); return }
+      onDone(username.trim())
+    } catch {
+      setError('サーバーに接続できませんでした')
+      setLoading(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <input
+        value={username}
+        onChange={e => setUsername(e.target.value)}
+        placeholder="ユーザー名"
+        className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-4 text-base outline-none focus:border-emerald-400 transition-colors"
+        autoCapitalize="none"
+        autoCorrect="off"
+      />
+      <input
+        type="password"
+        inputMode="numeric"
+        value={pin}
+        onChange={e => setPin(e.target.value)}
+        placeholder="PIN番号（4文字以上）"
+        className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-4 text-base outline-none focus:border-emerald-400 transition-colors"
+      />
+      <input
+        type="password"
+        inputMode="numeric"
+        value={confirm}
+        onChange={e => setConfirm(e.target.value)}
+        placeholder="PIN番号（確認）"
+        className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-4 text-base outline-none focus:border-emerald-400 transition-colors"
+      />
+      {error && <p className="text-red-400 text-sm text-center bg-red-50 rounded-xl py-2">{error}</p>}
+      <button type="submit" disabled={loading}
+        className="w-full py-4 bg-emerald-500 text-white font-bold rounded-2xl text-base shadow-lg shadow-emerald-200 active:bg-emerald-600 disabled:opacity-60 transition-all mt-2">
+        {loading ? '登録中...' : 'アカウントを作成'}
+      </button>
+    </form>
+  )
+}
+
+export default function Login({ onLogin }) {
+  const [mode, setMode] = useState('login')
+  const [registered, setRegistered] = useState('')
+
+  const handleRegistered = (uname) => {
+    setRegistered(uname)
+    setMode('login')
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-6">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-10">
+          <div className="flex justify-center mb-4">
+            <MoSoroLogo size={80} uid="login" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-800">Kago</h1>
-          <p className="text-gray-400 text-sm mt-1">
-            {mode === 'register' ? 'アカウントを作成' : 'ログイン'}
-          </p>
+          <h1 className="text-3xl font-black text-gray-800">Mo-Soro</h1>
+          <p className="text-gray-400 text-sm mt-1.5">もうそろそろ買わなきゃ、を教えてくれる</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-4">
-          <div>
-            <label className="text-xs text-gray-500 mb-1 block">ユーザー名</label>
-            <input
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              placeholder="例：葵"
-              className="input w-full"
-              autoFocus
-            />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 mb-1 block">PIN（4桁の数字）</label>
-            <input
-              value={pin}
-              onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              placeholder="0000"
-              type="tel"
-              inputMode="numeric"
-              className="input w-full text-center text-2xl tracking-widest font-mono"
-            />
-          </div>
+        {registered && mode === 'login' && (
+          <p className="text-emerald-600 text-sm text-center bg-emerald-50 rounded-xl py-2 mb-3">
+            「{registered}」を登録しました。ログインしてください。
+          </p>
+        )}
 
-          {error && <p className="text-xs text-red-500">{error}</p>}
+        {mode === 'login'
+          ? <LoginForm onLogin={onLogin} />
+          : <RegisterForm onDone={handleRegistered} />
+        }
 
-          <button type="submit" disabled={loading}
-            className="w-full py-3 bg-emerald-500 text-white rounded-2xl font-bold disabled:opacity-60">
-            {loading ? '...' : mode === 'register' ? '登録してはじめる' : 'ログイン'}
-          </button>
-        </form>
-
-        <p className="text-center text-sm text-gray-400">
-          {mode === 'login'
-            ? <button onClick={() => { setMode('register'); setError('') }} className="text-emerald-500">新規登録はこちら</button>
-            : <button onClick={() => { setMode('login'); setError('') }} className="text-emerald-500">ログインはこちら</button>
-          }
-        </p>
+        <button
+          onClick={() => { setMode(m => m === 'login' ? 'register' : 'login'); setRegistered('') }}
+          className="w-full mt-5 text-sm text-gray-400 text-center"
+        >
+          {mode === 'login' ? 'アカウントをお持ちでない方 →' : 'ログインに戻る'}
+        </button>
       </div>
     </div>
   )

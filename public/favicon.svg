@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2dd4bf"/>
+      <stop offset="100%" stop-color="#0f766e"/>
+    </linearGradient>
+    <clipPath id="clip">
+      <rect x="148" y="148" width="216" height="280" rx="22"/>
+    </clipPath>
+  </defs>
+  <!-- 背景 -->
+  <rect width="512" height="512" rx="115" fill="url(#bg)"/>
+  <!-- クリップボード本体 -->
+  <rect x="148" y="148" width="216" height="280" rx="22" fill="white" opacity="0.15"/>
+  <rect x="148" y="148" width="216" height="280" rx="22" stroke="white" stroke-width="12" fill="none"/>
+  <!-- 完了エリア（下部） -->
+  <rect x="148" y="340" width="216" height="88" fill="white" opacity="0.9" clip-path="url(#clip)"/>
+  <line x1="155" y1="340" x2="357" y2="340" stroke="white" stroke-width="5" stroke-dasharray="12 7" opacity="0.5"/>
+  <!-- クリップ上部 -->
+  <rect x="208" y="134" width="96" height="34" rx="17" fill="white"/>
+  <rect x="222" y="145" width="68" height="50" fill="white"/>
+  <!-- チェック済みリスト項目（上） -->
+  <circle cx="186" cy="228" r="14" stroke="white" stroke-width="8" fill="none"/>
+  <path d="M179 228 L184 234 L195 222" stroke="white" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="213" y="221" width="122" height="14" rx="7" fill="white" opacity="0.9"/>
+  <!-- チェック済みリスト項目（中） -->
+  <circle cx="186" cy="284" r="14" stroke="white" stroke-width="8" fill="none"/>
+  <path d="M179 284 L184 290 L195 278" stroke="white" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="213" y="277" width="100" height="14" rx="7" fill="white" opacity="0.9"/>
+  <!-- 未チェックリスト項目（下・完了エリア内） -->
+  <circle cx="186" cy="368" r="14" stroke="#0f766e" stroke-width="8" fill="none"/>
+  <rect x="213" y="361" width="114" height="14" rx="7" fill="#0f766e" opacity="0.6"/>
+  <circle cx="186" cy="410" r="14" stroke="#0f766e" stroke-width="8" fill="none"/>
+  <rect x="213" y="403" width="88" height="14" rx="7" fill="#0f766e" opacity="0.6"/>
+</svg>

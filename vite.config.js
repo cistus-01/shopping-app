@@ -5,27 +5,14 @@ import { VitePWA } from 'vite-plugin-pwa'
 export default defineConfig({
   base: '/',
   plugins: [
-    {
-      name: 'redirect-no-trailing-slash',
-      configureServer(server) {
-        server.middlewares.use((req, res, next) => {
-          if (req.url === '/shopping-app') {
-            res.writeHead(301, { Location: '/shopping-app/' })
-            res.end()
-            return
-          }
-          next()
-        })
-      }
-    },
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'icon-192.png', 'icon-512.png'],
+      includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png'],
       manifest: {
-        name: 'Kago',
-        short_name: 'Kago',
-        description: '買い物も、家計も、これひとつ。',
+        name: 'Mo-Soro',
+        short_name: 'Mo-Soro',
+        description: 'もうそろそろ買わなきゃ、を教えてくれる買い物アプリ',
         lang: 'ja',
         theme_color: '#10b981',
         background_color: '#f0fdf4',
@@ -39,10 +26,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        runtimeCaching: [{
-          urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-          handler: 'CacheFirst',
-        }]
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//],
       }
     })
   ]
